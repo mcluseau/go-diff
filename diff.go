@@ -64,7 +64,7 @@ func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes
 // The currentIndex is the indexed target store.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex *Index, changes chan Change, cancel <-chan bool) {
+func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex Index, changes chan Change, cancel <-chan bool) {
 l:
 	for {
 		var (
@@ -121,8 +121,8 @@ l:
 // The currentValues channel provide values in the reference store. It MUST NOT produce duplicate keys.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffIndexStream(referenceIndex *Index, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
-	if !referenceIndex.recordValues {
+func DiffIndexStream(referenceIndex Index, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
+	if !referenceIndex.DoesRecordValues() {
 		panic("referenceIndex must record values")
 	}
 l:
@@ -181,6 +181,6 @@ l:
 // The currentIndex is the indexed target store.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffIndexIndex(referenceIndex *Index, currentIndex *Index, changes chan Change, cancel <-chan bool) {
+func DiffIndexIndex(referenceIndex Index, currentIndex Index, changes chan Change, cancel <-chan bool) {
 	DiffStreamIndex(referenceIndex.KeyValues(), currentIndex, changes, cancel)
 }

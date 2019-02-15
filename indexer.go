@@ -14,7 +14,7 @@ const (
 
 type hash = [sha256.Size]byte
 
-type Index struct {
+type MemoryIndex struct {
 	recordValues   bool
 	hashes         map[hash]hash
 	unseen         map[hash]bool
@@ -22,12 +22,14 @@ type Index struct {
 	keyHashToValue map[hash][]byte
 }
 
-func NewIndex(recordValues bool) *Index {
+var _ Index = &MemoryIndex{}
+
+func NewIndex(recordValues bool) Index {
 	var valuesStore map[hash][]byte
 	if recordValues {
 		valuesStore = map[hash][]byte{}
 	}
-	return &Index{
+	return &MemoryIndex{
 		recordValues:   recordValues,
 		hashes:         map[hash]hash{},
 		unseen:         map[hash]bool{},
@@ -36,7 +38,7 @@ func NewIndex(recordValues bool) *Index {
 	}
 }
 
-func (i *Index) Index(kv KeyValue) {
+func (i *MemoryIndex) Index(kv KeyValue) {
 	keyH := sha256.Sum256(kv.Key)
 
 	if kv.Value == nil {
@@ -55,7 +57,7 @@ func (i *Index) Index(kv KeyValue) {
 	}
 }
 
-func (i *Index) Compare(kv KeyValue) CompareResult {
+func (i *MemoryIndex) Compare(kv KeyValue) CompareResult {
 	keyH := sha256.Sum256(kv.Key)
 
 	valueH, found := i.hashes[keyH]
@@ -74,7 +76,7 @@ func (i *Index) Compare(kv KeyValue) CompareResult {
 	return ModifiedKey
 }
 
-func (i *Index) KeysNotSeen() <-chan []byte {
+func (i *MemoryIndex) KeysNotSeen() <-chan []byte {
 	keys := make(chan []byte, 1)
 	go func() {
 		for keyH, _ := range i.unseen {
@@ -85,12 +87,12 @@ func (i *Index) KeysNotSeen() <-chan []byte {
 	return keys
 }
 
-func (i *Index) Value(key []byte) []byte {
+func (i *MemoryIndex) Value(key []byte) []byte {
 	keyH := sha256.Sum256(key)
 	return i.keyHashToValue[keyH]
 }
 
-func (i *Index) KeyValues() <-chan KeyValue {
+func (i *MemoryIndex) KeyValues() <-chan KeyValue {
 	kvs := make(chan KeyValue, 1)
 	go func() {
 		for keyH, key := range i.keyHashToKey {
@@ -99,4 +101,8 @@ func (i *Index) KeyValues() <-chan KeyValue {
 		close(kvs)
 	}()
 	return kvs
+}
+
+func (i *MemoryIndex) DoesRecordValues() bool {
+	return i.recordValues
 }
