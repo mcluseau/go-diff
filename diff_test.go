@@ -63,6 +63,7 @@ func TestDiffDelete(t *testing.T) {
 }
 
 func TestDiffIndexStream(t *testing.T) {
+	cancel := make(chan bool, 1)
 	changes := make(chan Change, 10)
 
 	refIndex := NewIndex(true)
@@ -71,7 +72,7 @@ func TestDiffIndexStream(t *testing.T) {
 	go func() {
 		DiffIndexStream(refIndex, stream([]KeyValue{
 			kvS("k1", "v1"),
-		}), changes)
+		}), changes, cancel)
 		close(changes)
 	}()
 
@@ -99,10 +100,11 @@ func kvS(key, value string) KeyValue {
 func testChanges(t *testing.T, ref, current []KeyValue, exp []Change) {
 	t.Helper()
 
+	cancel := make(chan bool, 1)
 	changes := make(chan Change, 10)
 
 	go func() {
-		Diff(stream(ref), stream(current), changes)
+		Diff(stream(ref), stream(current), changes, cancel)
 		close(changes)
 	}()
 

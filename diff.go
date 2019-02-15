@@ -14,7 +14,7 @@ import (
 //
 // See other diff implementations for less faster and less memory consumming alternatives if
 // you can provide better garanties from your stores.
-func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change) {
+func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
 	referenceIndex := NewIndex(true)
 	currentIndex := NewIndex(false)
 
@@ -37,7 +37,7 @@ func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change) {
 
 	wg.Wait()
 
-	DiffIndexIndex(referenceIndex, currentIndex, changes)
+	DiffIndexIndex(referenceIndex, currentIndex, changes, cancel)
 }
 
 // Compares a store (currentValues) with a reference (referenceValues), streaming the reference.
@@ -47,14 +47,14 @@ func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change) {
 // The currentValues channel provide values in the target store. It will be indexed.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes chan Change) {
+func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
 	currentIndex := NewIndex(false)
 
 	for kv := range currentValues {
 		currentIndex.Index(kv)
 	}
 
-	DiffStreamIndex(referenceValues, currentIndex, changes)
+	DiffStreamIndex(referenceValues, currentIndex, changes, cancel)
 }
 
 // Compares a store (currentIndex) with a reference (referenceValues), streaming the reference.
@@ -64,9 +64,23 @@ func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes
 // The currentIndex is the indexed target store.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex *Index, changes chan Change) {
-	for kv := range referenceValues {
-		kv := kv
+func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex *Index, changes chan Change, cancel <-chan bool) {
+l:
+	for {
+		var (
+			kv KeyValue
+			ok bool
+		)
+
+		select {
+		case <-cancel:
+			return
+
+		case kv, ok = <-referenceValues:
+			if !ok {
+				break l
+			}
+		}
 
 		switch currentIndex.Compare(kv) {
 		case MissingKey:
@@ -107,12 +121,26 @@ func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex *Index, chang
 // The currentValues channel provide values in the reference store. It MUST NOT produce duplicate keys.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffIndexStream(referenceIndex *Index, currentValues <-chan KeyValue, changes chan Change) {
+func DiffIndexStream(referenceIndex *Index, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
 	if !referenceIndex.recordValues {
 		panic("referenceIndex must record values")
 	}
-	for kv := range currentValues {
-		kv := kv
+l:
+	for {
+		var (
+			kv KeyValue
+			ok bool
+		)
+
+		select {
+		case <-cancel:
+			return
+
+		case kv, ok = <-currentValues:
+			if !ok {
+				break l
+			}
+		}
 
 		switch referenceIndex.Compare(kv) {
 		case MissingKey:
@@ -153,6 +181,6 @@ func DiffIndexStream(referenceIndex *Index, currentValues <-chan KeyValue, chang
 // The currentIndex is the indexed target store.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffIndexIndex(referenceIndex *Index, currentIndex *Index, changes chan Change) {
-	DiffStreamIndex(referenceIndex.KeyValues(), currentIndex, changes)
+func DiffIndexIndex(referenceIndex *Index, currentIndex *Index, changes chan Change, cancel <-chan bool) {
+	DiffStreamIndex(referenceIndex.KeyValues(), currentIndex, changes, cancel)
 }
