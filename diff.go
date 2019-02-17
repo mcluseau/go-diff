@@ -67,6 +67,7 @@ func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes
 //
 // The changes channel will receive the changes, including Unchanged.
 func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex Index, changes chan Change, cancel <-chan bool) {
+	glog.V(4).Info("DiffStreamIndex: starting")
 	defer glog.V(4).Info("DiffStreamIndex: finished")
 l:
 	for {
@@ -77,14 +78,17 @@ l:
 
 		select {
 		case <-cancel:
+			glog.V(4).Info("DiffStreamIndex: cancelled")
 			return
 
 		case kv, ok = <-referenceValues:
 			if !ok {
+				glog.V(4).Info("DiffStreamIndex: end of values")
 				break l
 			}
 		}
 
+		glog.V(5).Info("DiffStreamIndex: new value")
 		cmp, err := currentIndex.Compare(kv)
 		if err != nil {
 			panic(err)

@@ -152,15 +152,16 @@ func (i *Index) Compare(kv KeyValue) (result diff.CompareResult, err error) {
 		panic("nil values are not allowed here")
 	}
 
-	tx, bucket, err := i.bucket(false)
+	tx, bucket, err := i.bucket(i.recordSeen)
 	if err != nil {
 		return
 	}
 
 	defer commitOrRollback(tx, err)
 
-	if err = i.recordSeenKey(kv.Key); err != nil {
-		return
+	if i.recordSeen {
+		seenBucket := tx.Bucket(i.seenBucketName)
+		err = seenBucket.Put(hashOf(kv.Key).Sum(nil), nil)
 	}
 
 	currentValueHash := bucket.Get(kv.Key)
@@ -176,18 +177,6 @@ func (i *Index) Compare(kv KeyValue) (result diff.CompareResult, err error) {
 	} else {
 		return diff.ModifiedKey, nil
 	}
-}
-
-func (i *Index) recordSeenKey(key []byte) error {
-	if !i.recordSeen {
-		return nil
-	}
-
-	return i.db.Update(func(tx *bolt.Tx) (err error) {
-		seenBucket := tx.Bucket(i.seenBucketName)
-		err = seenBucket.Put(hashOf(key).Sum(nil), nil)
-		return
-	})
 }
 
 func (i *Index) KeysNotSeen() <-chan []byte {
