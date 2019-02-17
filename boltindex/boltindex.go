@@ -29,6 +29,13 @@ type Index struct {
 }
 
 func New(db *bolt.DB, bucket []byte, recordSeen bool) (idx *Index, err error) {
+	if err = db.Update(func(tx *bolt.Tx) (err error) {
+		_, err = tx.CreateBucketIfNotExists(bucket)
+		return
+	}); err != nil {
+		return
+	}
+
 	idx = &Index{
 		db:             db,
 		bucketName:     bucket,
