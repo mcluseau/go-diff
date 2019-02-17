@@ -44,7 +44,7 @@ func (i *MemoryIndex) Index(kv KeyValue, resumeKey []byte) (err error) {
 
 	keyH := sha256.Sum256(kv.Key)
 
-	if kv.Value == nil {
+	if len(kv.Value) == 0 {
 		delete(i.hashes, keyH)
 		delete(i.keyHashToKey, keyH)
 		delete(i.keyHashToValue, keyH)
