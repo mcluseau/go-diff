@@ -29,8 +29,22 @@ type Index struct {
 }
 
 func New(db *bolt.DB, bucket []byte, recordSeen bool) (idx *Index, err error) {
+	var seenBucketName []byte
+
 	if err = db.Update(func(tx *bolt.Tx) (err error) {
-		_, err = tx.CreateBucketIfNotExists(bucket)
+		if _, err = tx.CreateBucketIfNotExists(bucket); err != nil {
+			return
+		}
+
+		if recordSeen {
+			ulid := newUlid()
+			seenBucketName = append(seenPrefix, ulid[:]...)
+
+			if _, err = tx.CreateBucket(seenBucketName); err != nil {
+				return
+			}
+		}
+
 		return
 	}); err != nil {
 		return
@@ -41,6 +55,7 @@ func New(db *bolt.DB, bucket []byte, recordSeen bool) (idx *Index, err error) {
 		bucketName:     bucket,
 		metaBucketName: append(metaPrefix, bucket...),
 		recordSeen:     recordSeen,
+		seenBucketName: seenBucketName,
 	}
 	return
 }
@@ -54,25 +69,6 @@ func (i *Index) bucket(writable bool) (tx *bolt.Tx, bucket *bolt.Bucket, err err
 	}
 
 	bucket = tx.Bucket(i.bucketName)
-	return
-}
-
-func (i *Index) seenBucket(tx *bolt.Tx) (bucket *bolt.Bucket, err error) {
-	if i.seenBucketName == nil {
-		ulid := newUlid()
-		seenBucket := append(seenPrefix, ulid[:]...)
-
-		if _, err = tx.CreateBucket(seenBucket); err != nil {
-			tx.Rollback()
-			return
-		}
-
-		tx.OnCommit(func() {
-			i.seenBucketName = seenBucket
-		})
-	}
-
-	bucket = tx.Bucket(i.seenBucketName)
 	return
 }
 
@@ -188,11 +184,7 @@ func (i *Index) recordSeenKey(key []byte) error {
 	}
 
 	return i.db.Update(func(tx *bolt.Tx) (err error) {
-		seenBucket, err := i.seenBucket(tx)
-		if err != nil {
-			return
-		}
-
+		seenBucket := tx.Bucket(i.seenBucketName)
 		err = seenBucket.Put(hashOf(key).Sum(nil), nil)
 		return
 	})
