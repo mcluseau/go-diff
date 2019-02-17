@@ -23,14 +23,14 @@ func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change, c
 
 	go func() {
 		for kv := range referenceValues {
-			referenceIndex.Index(kv)
+			referenceIndex.Index(kv, nil)
 		}
 		wg.Done()
 	}()
 
 	go func() {
 		for kv := range currentValues {
-			currentIndex.Index(kv)
+			currentIndex.Index(kv, nil)
 		}
 		wg.Done()
 	}()
@@ -51,7 +51,7 @@ func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes
 	currentIndex := NewIndex(false)
 
 	for kv := range currentValues {
-		currentIndex.Index(kv)
+		currentIndex.Index(kv, nil)
 	}
 
 	DiffStreamIndex(referenceValues, currentIndex, changes, cancel)
@@ -82,7 +82,12 @@ l:
 			}
 		}
 
-		switch currentIndex.Compare(kv) {
+		cmp, err := currentIndex.Compare(kv)
+		if err != nil {
+			panic(err)
+		}
+
+		switch cmp {
 		case MissingKey:
 			changes <- Change{
 				Type:  Created,
@@ -106,7 +111,13 @@ l:
 		}
 	}
 
-	for key := range currentIndex.KeysNotSeen() {
+	keysNotSeen := currentIndex.KeysNotSeen()
+	if keysNotSeen == nil {
+		// not supported by the index
+		return
+	}
+
+	for key := range keysNotSeen {
 		changes <- Change{
 			Type: Deleted,
 			Key:  key,
@@ -116,7 +127,7 @@ l:
 
 // Compares a store (currentValues) with a reference (referenceIndex), streaming the reference.
 //
-// The referenceIndex is the indexed target store. It MUST store the values.
+// The referenceIndex is the indexed target store. It MUST store the values AND support KeysNotSeen.
 //
 // The currentValues channel provide values in the reference store. It MUST NOT produce duplicate keys.
 //
@@ -142,7 +153,12 @@ l:
 			}
 		}
 
-		switch referenceIndex.Compare(kv) {
+		cmp, err := referenceIndex.Compare(kv)
+		if err != nil {
+			panic(err)
+		}
+
+		switch cmp {
 		case MissingKey:
 			changes <- Change{
 				Type: Deleted,
@@ -165,7 +181,13 @@ l:
 		}
 	}
 
-	for key := range referenceIndex.KeysNotSeen() {
+	keysNotSeen := referenceIndex.KeysNotSeen()
+	if keysNotSeen == nil {
+		// not supported by the index
+		panic("referenceIndex must support KeysNotSeen")
+	}
+
+	for key := range keysNotSeen {
 		changes <- Change{
 			Type:  Created,
 			Key:   key,

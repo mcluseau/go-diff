@@ -7,14 +7,15 @@ import (
 type CompareResult int
 
 const (
-	MissingKey = iota
+	MissingKey CompareResult = iota
 	ModifiedKey
 	UnchangedKey
 )
 
-type hash = [sha256.Size]byte
+type hash [sha256.Size]byte
 
 type MemoryIndex struct {
+	resumeKey      []byte
 	recordValues   bool
 	hashes         map[hash]hash
 	unseen         map[hash]bool
@@ -38,7 +39,9 @@ func NewIndex(recordValues bool) Index {
 	}
 }
 
-func (i *MemoryIndex) Index(kv KeyValue) {
+func (i *MemoryIndex) Index(kv KeyValue, resumeKey []byte) (err error) {
+	i.resumeKey = resumeKey
+
 	keyH := sha256.Sum256(kv.Key)
 
 	if kv.Value == nil {
@@ -55,25 +58,30 @@ func (i *MemoryIndex) Index(kv KeyValue) {
 	if i.recordValues {
 		i.keyHashToValue[keyH] = kv.Value
 	}
+	return
 }
 
-func (i *MemoryIndex) Compare(kv KeyValue) CompareResult {
+func (i *MemoryIndex) ResumeKey() ([]byte, error) {
+	return i.resumeKey, nil
+}
+
+func (i *MemoryIndex) Compare(kv KeyValue) (CompareResult, error) {
 	keyH := sha256.Sum256(kv.Key)
 
 	valueH, found := i.hashes[keyH]
 
 	if !found {
-		return MissingKey
+		return MissingKey, nil
 	}
 
 	delete(i.unseen, keyH)
 
 	otherH := sha256.Sum256(kv.Value)
 	if valueH == otherH {
-		return UnchangedKey
+		return UnchangedKey, nil
 	}
 
-	return ModifiedKey
+	return ModifiedKey, nil
 }
 
 func (i *MemoryIndex) KeysNotSeen() <-chan []byte {

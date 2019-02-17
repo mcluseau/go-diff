@@ -67,7 +67,7 @@ func TestDiffIndexStream(t *testing.T) {
 	changes := make(chan Change, 10)
 
 	refIndex := NewIndex(true)
-	refIndex.Index(kvS("k2", "v2"))
+	refIndex.Index(kvS("k2", "v2"), nil)
 
 	go func() {
 		DiffIndexStream(refIndex, stream([]KeyValue{
