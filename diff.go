@@ -2,6 +2,8 @@ package diff
 
 import (
 	"sync"
+
+	"github.com/golang/glog"
 )
 
 // Compares a store (currentValues) with a reference (referenceValues), streaming the reference.
@@ -65,6 +67,7 @@ func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes
 //
 // The changes channel will receive the changes, including Unchanged.
 func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex Index, changes chan Change, cancel <-chan bool) {
+	defer glog.V(4).Info("DiffStreamIndex: finished")
 l:
 	for {
 		var (
@@ -117,6 +120,7 @@ l:
 		return
 	}
 
+	glog.V(4).Info("DiffStreamIndex: deletion phase")
 	for key := range keysNotSeen {
 		changes <- Change{
 			Type: Deleted,
