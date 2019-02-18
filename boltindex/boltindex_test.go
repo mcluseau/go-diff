@@ -23,6 +23,8 @@ func TestKeysNotSeen(t *testing.T) {
 			t.Errorf("did not read \"a\" but %q", ks)
 		}
 
+		idx.Cleanup()
+
 		// -------------------------------------------------------------
 		idx, err = New(db, []byte("test"), true)
 		if err != nil {
@@ -42,6 +44,8 @@ func TestKeysNotSeen(t *testing.T) {
 		if ok {
 			t.Errorf("did not expect more values but got %q", string(k))
 		}
+
+		idx.Cleanup()
 	})
 }
 

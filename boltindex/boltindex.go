@@ -71,11 +71,6 @@ var _ diff.Index = &Index{}
 
 // Cleanup removes temp data produced by this index
 func (i *Index) Cleanup() (err error) {
-	if i.seenStream != nil {
-		close(i.seenStream)
-		i.seenWG.Wait()
-	}
-
 	if i.seenBucketName != nil {
 		err = i.db.Update(func(tx *bolt.Tx) (err error) {
 			tx.DeleteBucket(i.seenBucketName)
@@ -208,6 +203,8 @@ func (i *Index) writeSeen() {
 			saveBatch()
 		}
 	}
+
+	i.seenStream = nil
 
 	if len(batch) != 0 {
 		saveBatch()
