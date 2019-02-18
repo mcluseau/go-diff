@@ -24,17 +24,19 @@ func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change, c
 	wg.Add(2)
 
 	go func() {
-		for kv := range referenceValues {
-			referenceIndex.Index(kv, nil)
+		defer wg.Done()
+		err := referenceIndex.Index(referenceValues, nil)
+		if err != nil {
+			panic(err)
 		}
-		wg.Done()
 	}()
 
 	go func() {
-		for kv := range currentValues {
-			currentIndex.Index(kv, nil)
+		defer wg.Done()
+		err := currentIndex.Index(currentValues, nil)
+		if err != nil {
+			panic(err)
 		}
-		wg.Done()
 	}()
 
 	wg.Wait()
@@ -52,8 +54,8 @@ func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change, c
 func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
 	currentIndex := NewIndex(false)
 
-	for kv := range currentValues {
-		currentIndex.Index(kv, nil)
+	if err := currentIndex.Index(currentValues, nil); err != nil {
+		panic(err)
 	}
 
 	DiffStreamIndex(referenceValues, currentIndex, changes, cancel)

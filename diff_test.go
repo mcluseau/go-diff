@@ -67,12 +67,10 @@ func TestDiffIndexStream(t *testing.T) {
 	changes := make(chan Change, 10)
 
 	refIndex := NewIndex(true)
-	refIndex.Index(kvS("k2", "v2"), nil)
+	refIndex.Index(stream(kvS("k2", "v2")), nil)
 
 	go func() {
-		DiffIndexStream(refIndex, stream([]KeyValue{
-			kvS("k1", "v1"),
-		}), changes, cancel)
+		DiffIndexStream(refIndex, stream(kvS("k1", "v1")), changes, cancel)
 		close(changes)
 	}()
 
@@ -82,7 +80,7 @@ func TestDiffIndexStream(t *testing.T) {
 	})
 }
 
-func stream(kvs []KeyValue) <-chan KeyValue {
+func stream(kvs ...KeyValue) <-chan KeyValue {
 	c := make(chan KeyValue, 1)
 	go func() {
 		for _, kv := range kvs {
@@ -104,7 +102,7 @@ func testChanges(t *testing.T, ref, current []KeyValue, exp []Change) {
 	changes := make(chan Change, 10)
 
 	go func() {
-		Diff(stream(ref), stream(current), changes, cancel)
+		Diff(stream(ref...), stream(current...), changes, cancel)
 		close(changes)
 	}()
 
