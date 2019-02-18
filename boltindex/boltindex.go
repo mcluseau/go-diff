@@ -188,18 +188,17 @@ func (i *Index) writeSeen() {
 		err = i.db.Update(func(tx *bolt.Tx) (err error) {
 			bucket := tx.Bucket(i.seenBucketName)
 
-			ba := make([]byte, 0, hashLen)
 			for _, h := range batch {
-				bucket.Put(h.Sum(ba[0:0]), []byte{})
+				bucket.Put(h.Sum(nil), []byte{})
 			}
-
 			return
 		})
+
 		if err != nil {
 			panic(err)
 		}
 
-		batch = batch[0:0]
+		batch = batch[:0]
 		return
 	}
 
