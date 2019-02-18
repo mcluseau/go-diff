@@ -113,11 +113,9 @@ func (i *Index) Index(kv KeyValue, resumeKey []byte) (err error) {
 		err = i.storeResumeKey(tx, resumeKey)
 	}
 
-	key := append([]byte("k:"), kv.Key...)
-
 	if len(kv.Value) == 0 {
 		// deletion
-		err = bucket.Delete(key)
+		err = bucket.Delete(kv.Key)
 		return
 	}
 
