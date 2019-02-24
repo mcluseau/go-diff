@@ -240,11 +240,12 @@ func (i *Index) sendKeysNotSeen(ch chan []byte) {
 		keysBucket := tx.Bucket(i.bucketName)
 		seenBucket := tx.Bucket(i.seenBucketName)
 
+		if seenBucket == nil {
+			// no seenBucket => anormal condition, return immediately
+			return
+		}
+
 		err = keysBucket.ForEach(func(k, v []byte) (err error) {
-			if seenBucket == nil {
-				// no seenBucket => nothing was seen
-				ch <- k
-			}
 			if seenBucket.Get(hashOf(k).Sum(nil)) == nil {
 				ch <- k
 			}
