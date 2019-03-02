@@ -1,8 +1,10 @@
 package boltindex
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/boltdb/bolt"
@@ -49,6 +51,25 @@ func TestKeysNotSeen(t *testing.T) {
 	})
 }
 
+func TestInterrupted(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		idx, err := New(db, []byte("test"), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		idx.Index(singleValue("b", "value b"), nil)
+		idx.Cleanup()
+
+		idx, err = New(db, []byte("test"), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer idx.Cleanup()
+		idx.Compare(KeyValue{Key: []byte("a"), Value: []byte("not value a")})
+	})
+}
+
 func singleValue(key, value string) (ch chan KeyValue) {
 	ch = make(chan KeyValue, 1)
 	ch <- KeyValue{Key: []byte(key), Value: []byte(value)}
@@ -71,4 +92,11 @@ func withDB(t *testing.T, do func(db *bolt.DB)) {
 
 	defer db.Close()
 	do(db)
+
+	buf := make([]byte, 64<<10)
+	buf = buf[:runtime.Stack(buf, true)]
+
+	if bytes.Contains(buf, []byte("writeSeen")) {
+		t.Error("writeSeen left running:\n", string(buf))
+	}
 }
