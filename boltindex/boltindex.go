@@ -162,7 +162,10 @@ func (i *Index) Compare(kv KeyValue) (result diff.CompareResult, err error) {
 	}
 
 	if batcher := i.seenBatcher; batcher != nil {
-		batcher.Input() <- KeyValue{hashOf(kv.Key).Sum(nil), nil}
+		err = batcher.Input(KeyValue{hashOf(kv.Key).Sum(nil), nil})
+		if err != nil {
+			return
+		}
 	}
 
 	if currentValueHash == nil {

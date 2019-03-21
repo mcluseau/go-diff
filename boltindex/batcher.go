@@ -9,6 +9,10 @@ import (
 	"github.com/golang/glog"
 )
 
+var (
+	ErrBatcherClosed = errors.New("batcher closed")
+)
+
 type batcher struct {
 	DB         *bolt.DB
 	BucketName []byte
@@ -32,8 +36,16 @@ func newBatcher(db *bolt.DB, bucketName []byte, batchSize int) *batcher {
 	}
 }
 
-func (b *batcher) Input() chan<- KeyValue {
-	return b.input
+func (b *batcher) Input(kv KeyValue) (err error) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	if b.closed {
+		return ErrBatcherClosed
+	}
+
+	b.input <- kv
+	return
 }
 
 func (b *batcher) Start() <-chan error {
