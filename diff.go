@@ -1,9 +1,16 @@
 package diff
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/golang/glog"
+)
+
+var (
+	ErrMustSupportKeysNotSeen = errors.New("referenceIndex must support KeysNotSeen")
+	ErrMustRecordValues       = errors.New("referenceIndex must record values")
 )
 
 // Compares a store (currentValues) with a reference (referenceValues), streaming the reference.
@@ -16,32 +23,36 @@ import (
 //
 // See other diff implementations for less faster and less memory consumming alternatives if
 // you can provide better garanties from your stores.
-func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
+func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) error {
 	referenceIndex := NewIndex(true)
 	currentIndex := NewIndex(false)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
+	var err1, err2 error
+
 	go func() {
 		defer wg.Done()
-		err := referenceIndex.Index(referenceValues, nil)
-		if err != nil {
-			panic(err)
-		}
+		err1 = referenceIndex.Index(referenceValues, nil)
 	}()
 
 	go func() {
 		defer wg.Done()
-		err := currentIndex.Index(currentValues, nil)
-		if err != nil {
-			panic(err)
-		}
+		err2 = currentIndex.Index(currentValues, nil)
 	}()
 
 	wg.Wait()
 
-	DiffIndexIndex(referenceIndex, currentIndex, changes, cancel)
+	if err1 != nil {
+		return fmt.Errorf("error indexing reference values: %v", err1)
+	}
+
+	if err2 != nil {
+		return fmt.Errorf("error indexing current values: %v", err2)
+	}
+
+	return DiffIndexIndex(referenceIndex, currentIndex, changes, cancel)
 }
 
 // Compares a store (currentValues) with a reference (referenceValues), streaming the reference.
@@ -51,14 +62,14 @@ func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change, c
 // The currentValues channel provide values in the target store. It will be indexed.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
+func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) error {
 	currentIndex := NewIndex(false)
 
 	if err := currentIndex.Index(currentValues, nil); err != nil {
-		panic(err)
+		return err
 	}
 
-	DiffStreamIndex(referenceValues, currentIndex, changes, cancel)
+	return DiffStreamIndex(referenceValues, currentIndex, changes, cancel)
 }
 
 // Compares a store (currentIndex) with a reference (referenceValues), streaming the reference.
@@ -68,7 +79,7 @@ func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes
 // The currentIndex is the indexed target store.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex Index, changes chan Change, cancel <-chan bool) {
+func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex Index, changes chan Change, cancel <-chan bool) error {
 	glog.V(4).Info("DiffStreamIndex: starting")
 	defer glog.V(4).Info("DiffStreamIndex: finished")
 l:
@@ -81,7 +92,7 @@ l:
 		select {
 		case <-cancel:
 			glog.V(4).Info("DiffStreamIndex: cancelled")
-			return
+			return nil
 
 		case kv, ok = <-referenceValues:
 			if !ok {
@@ -93,7 +104,7 @@ l:
 		glog.V(10).Info("DiffStreamIndex: new value")
 		cmp, err := currentIndex.Compare(kv)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		switch cmp {
@@ -123,7 +134,7 @@ l:
 	keysNotSeen := currentIndex.KeysNotSeen()
 	if keysNotSeen == nil {
 		// not supported by the index
-		return
+		return nil
 	}
 
 	glog.V(4).Info("DiffStreamIndex: deletion phase")
@@ -133,6 +144,8 @@ l:
 			Key:  key,
 		}
 	}
+
+	return nil
 }
 
 // Compares a store (currentValues) with a reference (referenceIndex), streaming the reference.
@@ -142,9 +155,9 @@ l:
 // The currentValues channel provide values in the reference store. It MUST NOT produce duplicate keys.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffIndexStream(referenceIndex Index, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) {
+func DiffIndexStream(referenceIndex Index, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) error {
 	if !referenceIndex.DoesRecordValues() {
-		panic("referenceIndex must record values")
+		return ErrMustRecordValues
 	}
 l:
 	for {
@@ -155,7 +168,7 @@ l:
 
 		select {
 		case <-cancel:
-			return
+			return nil
 
 		case kv, ok = <-currentValues:
 			if !ok {
@@ -165,7 +178,7 @@ l:
 
 		cmp, err := referenceIndex.Compare(kv)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		switch cmp {
@@ -194,7 +207,7 @@ l:
 	keysNotSeen := referenceIndex.KeysNotSeen()
 	if keysNotSeen == nil {
 		// not supported by the index
-		panic("referenceIndex must support KeysNotSeen")
+		return ErrMustSupportKeysNotSeen
 	}
 
 	for key := range keysNotSeen {
@@ -204,6 +217,8 @@ l:
 			Value: referenceIndex.Value(key),
 		}
 	}
+
+	return nil
 }
 
 // Compares a store (currentValues) with a reference (referenceIndex), streaming the reference.
@@ -213,6 +228,6 @@ l:
 // The currentIndex is the indexed target store.
 //
 // The changes channel will receive the changes, including Unchanged.
-func DiffIndexIndex(referenceIndex Index, currentIndex Index, changes chan Change, cancel <-chan bool) {
-	DiffStreamIndex(referenceIndex.KeyValues(), currentIndex, changes, cancel)
+func DiffIndexIndex(referenceIndex Index, currentIndex Index, changes chan Change, cancel <-chan bool) error {
+	return DiffStreamIndex(referenceIndex.KeyValues(), currentIndex, changes, cancel)
 }

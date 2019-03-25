@@ -191,13 +191,13 @@ func (i *Index) KeysNotSeen() <-chan []byte {
 	return ch
 }
 
-func (i *Index) sendKeysNotSeen(ch chan<- []byte) {
+func (i *Index) sendKeysNotSeen(ch chan<- []byte) error {
 	defer close(ch)
 
 	i.seenBatcher.Close()
 	i.seenBatcher.Wait()
 
-	if err := i.db.View(func(tx *bolt.Tx) (err error) {
+	return i.db.View(func(tx *bolt.Tx) (err error) {
 		keysBucket := tx.Bucket(i.bucketName)
 		seenBucket := tx.Bucket(i.seenBatcher.BucketName)
 
@@ -214,9 +214,7 @@ func (i *Index) sendKeysNotSeen(ch chan<- []byte) {
 		})
 		return
 
-	}); err != nil {
-		panic(err)
-	}
+	})
 }
 
 func (i *Index) Value(key []byte) []byte {
