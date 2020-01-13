@@ -21,7 +21,7 @@ var (
 //
 // The changes channel will receive the changes, including Unchanged.
 //
-// See other diff implementations for less faster and less memory consumming alternatives if
+// See other diff implementations for faster and less memory consumming alternatives if
 // you can provide better garanties from your stores.
 func Diff(referenceValues, currentValues <-chan KeyValue, changes chan Change, cancel <-chan bool) error {
 	referenceIndex := NewIndex(true)
