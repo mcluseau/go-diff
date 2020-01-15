@@ -3,12 +3,13 @@ package diff
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
-
-	"github.com/golang/glog"
 )
 
 var (
+	Debug = false
+
 	ErrMustSupportKeysNotSeen = errors.New("referenceIndex must support KeysNotSeen")
 	ErrMustRecordValues       = errors.New("referenceIndex must record values")
 )
@@ -80,8 +81,11 @@ func DiffStreamReference(referenceValues, currentValues <-chan KeyValue, changes
 //
 // The changes channel will receive the changes, including Unchanged.
 func DiffStreamIndex(referenceValues <-chan KeyValue, currentIndex Index, changes chan Change, cancel <-chan bool) error {
-	glog.V(4).Info("DiffStreamIndex: starting")
-	defer glog.V(4).Info("DiffStreamIndex: finished")
+	if Debug {
+		log.Print("DiffStreamIndex: starting")
+		defer log.Print("DiffStreamIndex: finished")
+	}
+
 l:
 	for {
 		var (
@@ -91,17 +95,24 @@ l:
 
 		select {
 		case <-cancel:
-			glog.V(4).Info("DiffStreamIndex: cancelled")
+			if Debug {
+				log.Print("DiffStreamIndex: cancelled")
+			}
 			return nil
 
 		case kv, ok = <-referenceValues:
 			if !ok {
-				glog.V(4).Info("DiffStreamIndex: end of values")
+				if Debug {
+					log.Print("DiffStreamIndex: end of values")
+				}
 				break l
 			}
 		}
 
-		glog.V(10).Info("DiffStreamIndex: new value")
+		if Debug {
+			log.Print("DiffStreamIndex: new value")
+		}
+
 		cmp, err := currentIndex.Compare(kv)
 		if err != nil {
 			return err
@@ -137,7 +148,10 @@ l:
 		return nil
 	}
 
-	glog.V(4).Info("DiffStreamIndex: deletion phase")
+	if Debug {
+		log.Print("DiffStreamIndex: deletion phase")
+	}
+
 	for key := range keysNotSeen {
 		changes <- Change{
 			Type: Deleted,

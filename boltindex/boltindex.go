@@ -2,9 +2,10 @@ package boltindex
 
 import (
 	"bytes"
+	"fmt"
+	"log"
 
 	"github.com/boltdb/bolt"
-	"github.com/golang/glog"
 
 	diff "github.com/mcluseau/go-diff"
 )
@@ -12,6 +13,8 @@ import (
 const seenBatchSize = 1000
 
 var (
+	Debug = false
+
 	resumeKeyKey = []byte("resumeKey")
 	metaPrefix   = []byte("meta:")
 	seenPrefix   = []byte("seen:")
@@ -63,7 +66,7 @@ func New(db *bolt.DB, bucket []byte, recordSeen bool) (idx *Index, err error) {
 		errCh := idx.seenBatcher.Start()
 		go func() {
 			if err := <-errCh; err != nil {
-				glog.Fatalf("batcher %q failed: %v", string(seenBucketName), err)
+				panic(fmt.Errorf("batcher %q failed: %v", string(seenBucketName), err))
 			}
 		}()
 	}
@@ -76,12 +79,17 @@ var _ diff.Index = &Index{}
 // Cleanup removes temp data produced by this index
 func (i *Index) Cleanup() (err error) {
 	if i.seenBatcher != nil {
-		glog.V(4).Infof("clearing batcher %q", string(i.seenBatcher.BucketName))
+		if Debug {
+			log.Printf("clearing batcher %q", string(i.seenBatcher.BucketName))
+		}
 
 		i.seenBatcher.Close()
 		i.seenBatcher.Wait()
 
-		glog.V(4).Infof("clearing bucket %q", string(i.seenBatcher.BucketName))
+		if Debug {
+			log.Printf("clearing bucket %q", string(i.seenBatcher.BucketName))
+		}
+
 		err = i.db.Update(func(tx *bolt.Tx) (err error) {
 			err = tx.DeleteBucket(i.seenBatcher.BucketName)
 			if err == bolt.ErrBucketNotFound {

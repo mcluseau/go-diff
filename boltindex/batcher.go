@@ -3,10 +3,10 @@ package boltindex
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/boltdb/bolt"
-	"github.com/golang/glog"
 )
 
 var (
@@ -88,7 +88,9 @@ func (b *batcher) Wait() {
 }
 
 func (b *batcher) saveBatch(batch []KeyValue) error {
-	glog.V(5).Infof("batcher %q: save batch: %d entries", string(b.BucketName), len(batch))
+	if Debug {
+		log.Printf("batcher %q: save batch: %d entries", string(b.BucketName), len(batch))
+	}
 
 	return b.DB.Update(func(tx *bolt.Tx) (err error) {
 		bucket := tx.Bucket(b.BucketName)
@@ -107,7 +109,10 @@ func (b *batcher) saveBatch(batch []KeyValue) error {
 }
 
 func (b *batcher) run() (err error) {
-	defer glog.V(5).Infof("batcher %q: finished", string(b.BucketName))
+	if Debug {
+		defer log.Printf("batcher %q: finished", string(b.BucketName))
+	}
+
 	defer b.wg.Done()
 
 	batch := make([]KeyValue, 0, seenBatchSize)
